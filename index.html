@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ソートアルゴリズム視覚化</title>
+  <style>
+    body {
+      font-family: 'Arial', sans-serif;
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 20px;
+      background-color: #f5f5f5;
+    }
+    h1 {
+      text-align: center;
+      color: #333;
+    }
+    .controls {
+      display: flex;
+      justify-content: center;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    button {
+      padding: 8px 16px;
+      font-size: 14px;
+      cursor: pointer;
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      transition: background-color 0.3s;
+    }
+    button:hover {
+      background-color: #45a049;
+    }
+    select {
+      padding: 8px;
+      font-size: 14px;
+      border-radius: 4px;
+      border: 1px solid #ddd;
+    }
+    .visualization {
+      height: 300px;
+      margin: 20px 0;
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      background-color: white;
+      border-radius: 4px;
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+      padding: 10px;
+    }
+    .bar {
+      background-color: #3498db;
+      margin: 0 2px;
+      width: 20px;
+      transition: height 0.3s ease;
+    }
+    .info {
+      margin-top: 20px;
+      background-color: white;
+      padding: 15px;
+      border-radius: 4px;
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+    }
+    .speed-control {
+      margin: 10px 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .speed-control label {
+      margin-right: 10px;
+    }
+    .current-step {
+      text-align: center;
+      margin: 10px 0;
+      font-weight: bold;
+    }
+    .comparing {
+      background-color: #ff5722;
+    }
+    .sorted {
+      background-color: #4CAF50;
+    }
+  </style>
+</head>
+<body>
+  <h1>ソートアルゴリズム視覚化</h1>
+  
+  <div class="controls">
+    <select id="algorithm">
+      <option value="bubble">バブルソート</option>
+      <option value="selection">選択ソート</option>
+      <option value="insertion">挿入ソート</option>
+      <option value="quick">クイックソート</option>
+      <option value="merge">マージソート</option>
+    </select>
+    <button id="generate">新しい配列を生成</button>
+    <button id="start">ソート開始</button>
+    <button id="pause" disabled>一時停止</button>
+    <button id="reset">リセット</button>
+  </div>
+  
+  <div class="speed-control">
+    <label for="speed">スピード:</label>
+    <input type="range" id="speed" min="1" max="100" value="50">
+  </div>
+  
+  <div class="current-step" id="step-display">配列を生成してソートを開始してください</div>
+  
+  <div class="visualization" id="array-container"></div>
+  
+  <div class="info">
+    <h3 id="algo-title">バブルソート</h3>
+    <p id="algo-description">
+      バブルソートは隣接する要素を比較し、必要に応じて交換することで整列を行います。このプロセスを配列が完全に整列されるまで繰り返します。時間計算量はO(n²)です。
+    </p>
+    <p id="algo-status"></p>
+  </div>
+
+  <script>
+    // DOM要素
+    const container = document.getElementById('array-container');
+    const algoSelect = document.getElementById('algorithm');
+    const generateBtn = document.getElementById('generate');
+    const startBtn = document.getElementById('start');
+    const pauseBtn = document.getElementById('pause');
+    const resetBtn = document.getElementById('reset');
+    const speedControl = document.getElementById('speed');
+    const stepDisplay = document.getElementById('step-display');
+    const algoTitle = document.getElementById('algo-title');
+    const algoDescription = document.getElementById('algo-description');
+    const algoStatus = document.getElementById('algo-status');
+    
+    // 変数
+    let array = [];
+    let arrayCopy = [];
+    let arrayBars = [];
+    let sortingProcess = [];
+    let currentStep = 0;
+    let animationId = null;
+    let isPaused = false;
+    let isSorting = false;
+    
+    // アルゴリズム説明
+    const algoInfo = {
+      bubble: {
+        title: 'バブルソート',
+        description: 'バブルソートは隣接する要素を比較し、必要に応じて交換することで整列を行います。このプロセスを配列が完全に整列されるまで繰り返します。時間計算量はO(n²)です。'
+      },
+      selection: {
+        title: '選択ソート',
+        description: '選択ソートはまず最小値を探し、配列の先頭の要素と交換します。次に、残りの部分で最小値を探し、2番目の位置と交換します。このプロセスを配列全体が整列されるまで繰り返します。時間計算量はO(n²)です。'
+      },
+      insertion: {
+        title: '挿入ソート',
+        description: '挿入ソートは、整列済みの部分と未整列の部分に分け、未整列部分から1つずつ要素を取り出し、整列済み部分の適切な位置に挿入します。時間計算量はO(n²)ですが、ほぼソート済みの配列に対しては効率的です。'
+      },
+      quick: {
+        title: 'クイックソート',
+        description: 'クイックソートは分割統治法を使用します。ピボットを選び、ピボットより小さい要素を左に、大きい要素を右に分割し、再帰的に各部分をソートします。平均的な時間計算量はO(n log n)です。'
+      },
+      merge: {
+        title: 'マージソート',
+        description: 'マージソートは分割統治法を使用します。配列を半分に分割し、各部分を再帰的にソートした後、整列された2つの部分を統合します。時間計算量はO(n log n)で安定しています。'
+      }
+    };
+    
+    // 配列を生成
+    function generateArray() {
+      array = [];
+      const size = 30;
+      for (let i = 0; i < size; i++) {
+        array.push(Math.floor(Math.random() * 250) + 10);
+      }
+      arrayCopy = [...array];
+      displayArray();
+      updateAlgoInfo();
+      
+      resetSortingState();
+      stepDisplay.textContent = '配列を生成しました。ソートを開始してください。';
+    }
+    
+    // 配列を表示
+    function displayArray() {
+      container.innerHTML = '';
+      arrayBars = [];
+      
+      const maxValue = Math.max(...array);
+      
+      array.forEach((value, index) => {
+        const bar = document.createElement('div');
+        bar.className = 'bar';
+        bar.style.height = `${(value / maxValue) * 280}px`;
+        container.appendChild(bar);
+        arrayBars.push(bar);
+      });
+    }
+    
+    // アルゴリズム情報を更新
+    function updateAlgoInfo() {
+      const selectedAlgo = algoSelect.value;
+      algoTitle.textContent = algoInfo[selectedAlgo].title;
+      algoDescription.textContent = algoInfo[selectedAlgo].description;
+      algoStatus.textContent = '';
+    }
+    
+    // バブルソート
+    function bubbleSort(arr) {
+      const steps = [];
+      const n = arr.length;
+      const sortArr = [...arr];
+      
+      for (let i = 0; i < n - 1; i++) {
+        for (let j = 0; j < n - i - 1; j++) {
+          // 比較
+          steps.push({ type: 'compare', indices: [j, j + 1] });
+          
+          if (sortArr[j] > sortArr[j + 1]) {
+            // 交換
+            [sortArr[j], sortArr[j + 1]] = [sortArr[j + 1], sortArr[j]];
+            steps.push({ type: 'swap', indices: [j, j + 1], array: [...sortArr] });
+          } else {
+            steps.push({ type: 'no-swap', indices: [j, j + 1] });
+          }
+        }
+        // 位置が確定した要素
+        steps.push({ type: 'sorted', index: n - i - 1 });
+      }
+      
+      // 最初の要素も整列済みとしてマーク
+      steps.push({ type: 'sorted', index: 0 });
+      
+      return steps;
+    }
+    
+    // 選択ソート
+    function selectionSort(arr) {
+      const steps = [];
+      const n = arr.length;
+      const sortArr = [...arr];
+      
+      for (let i = 0; i < n - 1; i++) {
+        let minIndex = i;
+        
+        // 最小値を探す
+        for (let j = i + 1; j < n; j++) {
+          // 比較
+          steps.push({ type: 'compare', indices: [minIndex, j] });
+          
+          if (sortArr[j] < sortArr[minIndex]) {
+            minIndex = j;
+          }
+        }
+        
+        // 最小値を交換
+        if (minIndex !== i) {
+          [sortArr[i], sortArr[minIndex]] = [sortArr[minIndex], sortArr[i]];
+          steps.push({ type: 'swap', indices: [i, minIndex], array: [...sortArr] });
+        }
+        
+        // 位置が確定した要素
+        steps.push({ type: 'sorted', index: i });
+      }
+      
+      // 最後の要素も整列済みとしてマーク
+      steps.push({ type: 'sorted', index: n - 1 });
+      
+      return steps;
+    }
+    
+    // 挿入ソート
+    function insertionSort(arr) {
+      const steps = [];
+      const n = arr.length;
+      const sortArr = [...arr];
+      
+      // 最初の要素は整列済みとみなす
+      steps.push({ type: 'sorted', index: 0 });
+      
+      for (let i = 1; i < n; i++) {
+        const key = sortArr[i];
+        let j = i - 1;
+        
+        // 適切な位置を探す
+        while (j >= 0) {
+          // 比較
+          steps.push({ type: 'compare', indices: [j, j + 1] });
+          
+          if (sortArr[j] > key) {
+            sortArr[j + 1] = sortArr[j];
+            steps.push({ type: 'shift', index: j, array: [...sortArr] });
+            j--;
+          } else {
+            break;
+          }
+        }
+        
+        sortArr[j + 1] = key;
+        steps.push({ type: 'insert', index: j + 1, array: [...sortArr] });
+        steps.push({ type: 'sorted', index: i });
+      }
+      
+      return steps;
+    }
+    
+    // クイックソート
+    function quickSort(arr) {
+      const steps = [];
+      const sortArr = [...arr];
+      
+      function partition(arr, low, high) {
+        const pivot = arr[high];
+        steps.push({ type: 'pivot', index: high });
+        
+        let i = low - 1;
+        
+        for (let j = low; j < high; j++) {
+          steps.push({ type: 'compare', indices: [j, high] });
+          
+          if (arr[j] <= pivot) {
+            i++;
+            [arr[i], arr[j]] = [arr[j], arr[i]];
+            steps.push({ type: 'swap', indices: [i, j], array: [...arr] });
+          }
+        }
+        
+        [arr[i + 1], arr[high]] = [arr[high], arr[i + 1]];
+        steps.push({ type: 'swap', indices: [i + 1, high], array: [...arr] });
+        
+        return i + 1;
+      }
+      
+      function quickSortHelper(arr, low, high) {
+        if (low < high) {
+          const pi = partition(arr, low, high);
+          steps.push({ type: 'sorted', index: pi });
+          
+          quickSortHelper(arr, low, pi - 1);
+          quickSortHelper(arr, pi + 1, high);
+        } else if (low === high) {
+          steps.push({ type: 'sorted', index: low });
+        }
+      }
+      
+      quickSortHelper(sortArr, 0, sortArr.length - 1);
+      return steps;
+    }
+    
+    // マージソート
+    function mergeSort(arr) {
+      const steps = [];
+      const sortArr = [...arr];
+      
+      function merge(arr, l, m, r) {
+        const n1 = m - l + 1;
+        const n2 = r - m;
+        
+        const L = new Array(n1);
+        const R = new Array(n2);
+        
+        for (let i = 0; i < n1; i++) {
+          L[i] = arr[l + i];
+        }
+        for (let j = 0; j < n2; j++) {
+          R[j] = arr[m + 1 + j];
+        }
+        
+        let i = 0, j = 0, k = l;
+        
+        while (i < n1 && j < n2) {
+          steps.push({ type: 'compare', indices: [l + i, m + 1 + j] });
+          
+          if (L[i] <= R[j]) {
+            arr[k] = L[i];
+            steps.push({ type: 'update', index: k, value: L[i], array: [...arr] });
+            i++;
+          } else {
+            arr[k] = R[j];
+            steps.push({ type: 'update', index: k, value: R[j], array: [...arr] });
+            j++;
+          }
+          k++;
+        }
+        
+        while (i < n1) {
+          arr[k] = L[i];
+          steps.push({ type: 'update', index: k, value: L[i], array: [...arr] });
+          i++;
+          k++;
+        }
+        
+        while (j < n2) {
+          arr[k] = R[j];
+          steps.push({ type: 'update', index: k, value: R[j], array: [...arr] });
+          j++;
+          k++;
+        }
+        
+        // マージ完了後の部分配列
+        for (let idx = l; idx <= r; idx++) {
+          steps.push({ type: 'merged', index: idx });
+        }
+      }
+      
+      function mergeSortHelper(arr, l, r) {
+        if (l < r) {
+          const m = Math.floor((l + r) / 2);
+          
+          mergeSortHelper(arr, l, m);
+          mergeSortHelper(arr, m + 1, r);
+          
+          merge(arr, l, m, r);
+        }
+      }
+      
+      mergeSortHelper(sortArr, 0, sortArr.length - 1);
+      
+      // 最終的にすべての要素を整列済みとしてマーク
+      for (let i = 0; i < sortArr.length; i++) {
+        steps.push({ type: 'sorted', index: i });
+      }
+      
+      return steps;
+    }
+    
+    // ソート開始
+    function startSorting() {
+      if (isSorting && isPaused) {
+        isPaused = false;
+        pauseBtn.textContent = '一時停止';
+        animateSort();
+        return;
+      }
+      
+      if (isSorting) return;
+      
+      // 配列をリセット
+      array = [...arrayCopy];
+      displayArray();
+      
+      // アルゴリズムに基づいてソートプロセスを生成
+      const selectedAlgo = algoSelect.value;
+      
+      switch (selectedAlgo) {
+        case 'bubble':
+          sortingProcess = bubbleSort(array);
+          break;
+        case 'selection':
+          sortingProcess = selectionSort(array);
+          break;
+        case 'insertion':
+          sortingProcess = insertionSort(array);
+          break;
+        case 'quick':
+          sortingProcess = quickSort(array);
+          break;
+        case 'merge':
+          sortingProcess = mergeSort(array);
+          break;
+      }
+      
+      // ソート開始
+      isSorting = true;
+      currentStep = 0;
+      startBtn.disabled = true;
+      pauseBtn.disabled = false;
+      animateSort();
+    }
+    
+    // ソートアニメーション
+    function animateSort() {
+      if (isPaused || currentStep >= sortingProcess.length) {
+        if (currentStep >= sortingProcess.length) {
+          finishSorting();
+        }
+        return;
+      }
+      
+      // 前のステップの状態をクリア
+      arrayBars.forEach(bar => {
+        bar.classList.remove('comparing', 'sorted');
+      });
+      
+      const step = sortingProcess[currentStep];
+      let delay = 101 - speedControl.value; // スピード調整
+      
+      // ステップに応じたアニメーション
+      switch (step.type) {
+        case 'compare':
+          step.indices.forEach(index => {
+            arrayBars[index].classList.add('comparing');
+          });
+          stepDisplay.textContent = `比較中: インデックス ${step.indices.join(' と ')}`;
+          break;
+          
+        case 'swap':
+          step.indices.forEach(index => {
+            arrayBars[index].classList.add('comparing');
+          });
+          // 配列の状態を更新
+          array = [...step.array];
+          // バーの高さを更新
+          const maxValue = Math.max(...array);
+          step.indices.forEach(index => {
+            arrayBars[index].style.height = `${(array[index] / maxValue) * 280}px`;
+          });
+          stepDisplay.textContent = `交換: インデックス ${step.indices.join(' と ')}`;
+          break;
+          
+        case 'no-swap':
+          stepDisplay.textContent = `比較後: 交換不要`;
+          break;
+          
+        case 'sorted':
+          arrayBars[step.index].classList.add('sorted');
+          stepDisplay.textContent = `確定: インデックス ${step.index}`;
+          break;
+          
+        case 'shift':
+          // 配列の状態を更新
+          array = [...step.array];
+          // バーの高さを更新
+          updateBars();
+          stepDisplay.textContent = `シフト: インデックス ${step.index}`;
+          break;
+          
+        case 'insert':
+          // 配列の状態を更新
+          array = [...step.array];
+          // バーの高さを更新
+          updateBars();
+          stepDisplay.textContent = `挿入: インデックス ${step.index}`;
+          break;
+          
+        case 'pivot':
+          arrayBars[step.index].classList.add('comparing');
+          stepDisplay.textContent = `ピボット選択: インデックス ${step.index}`;
+          break;
+          
+        case 'update':
+          // 配列の状態を更新
+          array = [...step.array];
+          // バーの高さを更新
+          updateBars();
+          stepDisplay.textContent = `更新: インデックス ${step.index} の値を ${step.value} に`;
+          break;
+          
+        case 'merged':
+          arrayBars[step.index].classList.add('comparing');
+          stepDisplay.textContent = `マージ: インデックス ${step.index}`;
+          break;
+      }
+      
+      // ステータス更新
+      algoStatus.textContent = `ステップ ${currentStep + 1}/${sortingProcess.length}`;
+      
+      // 次のステップ
+      currentStep++;
+      animationId = setTimeout(animateSort, delay);
+    }
+    
+    // バーの高さを更新
+    function updateBars() {
+      const maxValue = Math.max(...array);
+      array.forEach((value, index) => {
+        arrayBars[index].style.height = `${(value / maxValue) * 280}px`;
+      });
+    }
+    
+    // ソート終了
+    function finishSorting() {
+      isSorting = false;
+      isPaused = false;
+      startBtn.disabled = false;
+      pauseBtn.disabled = true;
+      
+      // すべての要素を整列済みとしてマーク
+      arrayBars.forEach(bar => {
+        bar.classList.add('sorted');
+      });
+      
+      stepDisplay.textContent = 'ソート完了！';
+      algoStatus.textContent = `完了: ${sortingProcess.length}ステップで整列しました`;
+    }
+    
+    // 一時停止/再開
+    function togglePause() {
+      isPaused = !isPaused;
+      
+      if (isPaused) {
+        pauseBtn.textContent = '再開';
+        clearTimeout(animationId);
+      } else {
+        pauseBtn.textContent = '一時停止';
+        animateSort();
+      }
+    }
+    
+    // リセット
+    function resetSort() {
+      clearTimeout(animationId);
+      resetSortingState();
+      array = [...arrayCopy];
+      displayArray();
+      stepDisplay.textContent = 'リセットしました。ソートを開始してください。';
+      algoStatus.textContent = '';
+    }
+    
+    // ソート状態をリセット
+    function resetSortingState() {
+      isSorting = false;
+      isPaused = false;
+      currentStep = 0;
+      sortingProcess = [];
+      startBtn.disabled = false;
+      pauseBtn.disabled = true;
+      pauseBtn.textContent = '一時停止';
+      clearTimeout(animationId);
+    }
+    
+    // イベントリスナー
+    generateBtn.addEventListener('click', generateArray);
+    startBtn.addEventListener('click', startSorting);
+    pauseBtn.addEventListener('click', togglePause);
+    resetBtn.addEventListener('click', resetSort);
+    algoSelect.addEventListener('change', updateAlgoInfo);
+    
+    // 初期化
+    generateArray();
+  </script>
+</body>
+</html>
